@@ -306,6 +306,7 @@
   .status-pill.pass { background: var(--success-soft); color: var(--success); }
   .status-pill.info { background: var(--accent-soft); color: var(--accent); }
   .status-pill.warn { background: var(--danger-soft); color: var(--danger); }
+  .compare-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
 
   footer { font-size: 12px; color: var(--text-muted); margin-top: 2.5rem; border-top: 0.5px solid var(--border); padding-top: 1rem; }
   a { color: var(--accent); }
@@ -584,6 +585,67 @@
   </div>
 </section>
 
+<section>
+  <div class="lab">
+    <div class="lab-header">
+      <div>
+        <h2>Compare: PEAD vs SPY vs allocation blend vs improved</h2>
+        <p class="section-sub" style="margin-bottom:0;">Same capital &amp; horizon as the lab above &mdash; four ways of allocating the same money, each bootstrap-resampled 3,000 times</p>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <label class="control-label" for="allocationInput">PEAD allocation weight (rest held in SPY) &mdash; 15% is the Sharpe-optimal, LOYO-validated default</label>
+      <div class="capital-input-row">
+        <input type="text" inputmode="decimal" id="allocationInput" value="15" aria-label="PEAD allocation weight percent">
+        <span class="prefix" style="margin-left:6px;">%</span>
+      </div>
+    </div>
+
+    <div class="chart-card" style="padding:0.85rem 0.85rem 0.5rem;">
+      <p class="section-sub" style="margin-bottom:8px;">Median simulated path per scenario</p>
+      <div class="chart-wrap" style="height:210px;"><canvas id="compareChart"></canvas></div>
+      <div class="legend">
+        <div class="legend-item"><span class="legend-swatch" style="background:var(--danger);"></span> PEAD (naive i.i.d.)</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:var(--text-muted);"></span> SPY only</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:var(--accent);"></span> Better PEAD (block bootstrap)</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:var(--success);"></span> PEAD + SPY (w% allocation)</div>
+      </div>
+    </div>
+
+    <div class="table-scroll" style="margin-top:14px;">
+      <table class="data-table" id="compareTable">
+        <thead>
+          <tr>
+            <th>Scenario</th>
+            <th>Median ending capital</th>
+            <th>Median return</th>
+            <th>5th&ndash;95th pct. range</th>
+            <th>Prob. of loss</th>
+          </tr>
+        </thead>
+        <tbody id="compareTableBody"></tbody>
+      </table>
+    </div>
+
+    <div class="caveat" style="margin-top:12px;">
+      <strong>What this is and isn't:</strong> "PEAD + SPY" is a straight portfolio-weight blend &mdash; w% of
+      capital run as the PEAD strategy, the rest held in SPY &mdash; not an idle-cash correction. "SPY only" and
+      "PEAD + SPY" both reuse the real historical S&amp;P return over each trade's actual entry&ndash;exit window
+      (interpolated from monthly closes), bootstrap-resampled the same way as the PEAD trades. The 15% default isn't
+      a guess: a full sweep of this weight from 0&ndash;100% against the real 2019&ndash;2026 monthly history found
+      15% Sharpe-optimal (better risk-adjusted return <em>and</em> smaller max drawdown than pure SPY), and
+      leave-one-year-out validation confirmed it's stable &mdash; the optimal weight per held-out year clustered
+      10&ndash;20%, and an adaptively re-optimized weight did no better out-of-sample than just fixing it at 15%.
+      <strong>Even so, honestly: at this validated-optimal weight, the blend still only beat SPY's raw return in
+      about 3 of 7 historical years</strong> &mdash; it improves risk-adjusted return and drawdown, it does not beat
+      SPY's total return in every year, or even most years, in this sample. "PEAD (naive i.i.d.)" and "Better PEAD"
+      are the same 472 trades under the two resampling methods discussed above; only their variance/tail behavior
+      should differ, not their median.
+    </div>
+  </div>
+</section>
+
 <footer>
   Created by Sahil Kaila &middot; Last updated 2026-07-10. Generated from
   <code>python -m engine.main --strategy pead</code> in the
@@ -633,6 +695,20 @@ const TRADES_PER_YEAR = 62.8;
 // the 1%-of-equity risk sizing the backtest actually used) -- bootstrap
 // resampling and compounding this array is mechanically consistent with how
 // the real engine reinvests.
+// SPY's own return over each trade's exact entry->exit window, aligned
+// index-for-index with TRADE_FRACS. Interpolated from the monthly
+// SPY_VALUES/EQUITY_LABELS series (no daily SPY prices are available here),
+// so treat it as an approximation, not an exact daily-granularity return.
+const SPY_TRADE_FRACS = [0.005046, 0.007843, 0.011445, 0.011445, 0.033636, 0.010176, 0.011872, 0.050668, 0.050668, 0.033656, 0.031955, 0.05216, 0.029699, 0.045895, 0.059567, 0.052401, 0.06268, 0.00936, 0.070637, 0.073891, 0.096499, -0.033089, -0.027115, -0.003741, -0.014337, -0.016157, 0.001917, -0.00372, -0.002115, 0.00402, 0.004587, 0.014613, 0.011275, -0.002397, -0.003792, -0.001095, -0.002641, -0.000542, 0.000704, 0.002219, 0.005203, 0.005227, 0.010427, 0.011298, 0.004311, 0.022052, 0.026949, 0.026203, 0.026203, 0.018502, 0.014764, 0.003603, 0.034271, 0.055179, 0.06081, 0.06081, 0.021755, 0.057355, 0.05522, 0.013542, 0.042577, 0.010961, 0.040446, 0.014762, 0.038316, 0.036186, 0.034057, 0.018715, -0.013433, -0.013036, -0.031318, -0.012599, -0.02815, -0.011769, -0.025858, -0.025532, -0.015333, -0.010418, -0.007319, 0.000468, 0.002032, 0.002032, -0.007526, 0.009989, 0.011285, 0.026633, 0.05341, 0.009926, 0.025071, 0.000685, 0.023304, 0.023304, 0.016234, 0.00302, 0.015858, 0.02128, 0.018474, 0.017902, 0.01733, 0.001616, 0.015087, 0.003494, 0.001878, 0.0024, -0.000706, -0.001258, 7.9e-05, -0.002761, 0.000359, 0.053704, 0.049552, 0.047783, 0.033198, 0.033198, 0.026722, 0.023498, 0.010693, 0.001186, -0.001965, -0.011365, -0.011365, 0.001172, 0.006172, 0.034297, 0.024717, 0.048758, 0.048344, 0.048344, 0.037807, 0.047296, 0.048542, 0.038131, 0.035947, 0.015191, 0.034817, 0.027732, 0.058955, 0.06642, 0.056344, 0.083103, 0.034119, 0.080085, 0.072817, 0.072817, 0.063834, 0.063834, -0.001062, -0.002118, -0.00423, -0.003525, -0.003525, -0.002468, -0.012212, -0.019495, -0.033218, -0.002256, -0.00524, -0.00524, -0.010467, -0.006355, 0.000974, 0.00285, -0.004133, 0.003377, 0.005188, 0.005565, 0.004832, 0.011957, 0.012336, 0.012607, 0.050207, 0.041998, 0.015588, 0.006365, 0.006493, 0.013359, 0.01324, 0.01324, 0.013001, 0.003673, 0.004417, 0.021225, 0.011606, 0.011606, 0.010096, -0.004286, -0.016944, 0.029285, 0.014786, 0.032117, -0.027651, 0.057469, 0.010034, 0.059876, 0.059876, 0.059876, 0.033958, 0.05549, 0.05549, 0.050239, 0.025985, 0.048165, 0.047746, -0.006949, 0.003601, -0.017936, -0.015661, -0.012212, -0.009889, 0.002975, 0.006518, 0.006518, 0.010078, 0.017249, 0.017249, 0.028136, -0.014593, -0.001905, -0.015979, -0.018616, -0.012206, -0.012591, -0.006107, -0.034728, -0.026908, -0.029808, -0.032308, -0.044056, -0.041119, -0.032308, 0.003197, -0.004021, -0.009343, -0.023935, -0.025682, -0.0346, -0.036354, -0.038172, -0.01633, -0.01633, -0.018111, -0.037578, -0.03926, -0.015846, -0.051552, -0.035018, -0.015515, -0.011964, 0.013308, 0.041371, -0.004297, 0.020939, 0.018179, 0.000326, 0.006338, -0.006916, -0.000208, 0.000491, 0.006457, 0.011055, 0.019365, 0.019365, 0.026025, 0.023886, 0.026515, 0.026515, 0.031516, 0.032231, 0.029154, -0.008278, -0.015675, 0.003872, 0.00506, 0.022973, 0.011563, 0.02731, 0.021011, 0.010514, 0.018912, 0.004747, 0.023719, 0.021613, 0.020561, 0.024262, 0.023752, 0.02273, 0.020168, 0.020168, 0.020168, 0.002664, 0.003199, 0.003199, 0.019158, 0.02191, 0.026559, 0.026559, 0.009954, 0.016958, 0.016958, 0.01599, 0.016105, 0.015137, 0.014628, 0.008376, 0.013637, 0.01249, 0.014847, 0.01537, 0.018381, 0.022988, 0.022988, 0.022988, 0.024339, 0.024339, 0.024339, 0.025694, 0.025694, 0.025694, 0.006021, 0.029328, 0.026486, 0.015494, 0.021435, 0.024017, 0.025281, 0.036287, 0.02911, 0.036287, 0.037469, 0.037469, 0.030509, 0.024157, 0.034321, 0.031169, 0.029897, 0.033101, 0.033203, 0.00321, 0.0045, 0.005146, 0.006449, 0.006449, 0.006449, 0.013326, 0.011093, 0.028941, 0.031984, 0.045157, 0.050679, 0.048282, 0.067666, 0.079789, 0.031166, 0.103389, 0.103389, 0.103389, 0.091827, 0.062957, 0.030478, 0.083886, 0.083886, 0.083886, 0.076674, 0.029106, -0.001998, 0.079561, -0.00531, -0.003983, 0.053726, 0.02142, -0.005303, -0.008595, -0.008589, -0.009904, -0.009244, -0.007923, -0.009897, -0.009897, -0.024023, 0.009159, 0.009159, -0.011801, -0.002979, 0.026378, 0.026378, 0.021755, 0.053331, 0.061061, 0.017664, 0.064553, 0.064123, 0.011928, 0.063691, 0.061949, 0.057209, 0.061509, 0.061068, 0.061068, 0.060625, 0.058387, 0.058387, 0.025836, 0.057934, 0.022186, 0.05748, 0.031703, 0.041791, 0.036808, 0.051128, 0.066852, 0.068849, 0.080483, 0.080483, 0.077348, 0.08957, 0.072857, 0.077699, 0.11006, 0.11006, 0.093248, 0.050259, -0.003331, -0.003326, -0.006607, -0.029014, -0.032135, -0.036849, -0.032197, -0.000448, -0.000671, -7.5e-05, -0.000522, 0.016303, 0.011495, 0.00376, 0.018339, 0.006329, 0.019127, 0.010709, 0.00555, 0.018089, 0.033925, 0.005604, -0.000557, -0.001884, -0.002331, -0.000538, -0.003225, 0.016232, -0.052714, -0.041272, -0.011871, -0.037984, -0.03283, -0.00189, -0.005738, -0.001201, 0.021154, 0.016061, 0.022062, 0.025583, 0.036044, 0.036664, 0.040752, 0.040834, 0.041941, 0.050341, 0.049838, 0.050989, 0.059897, 0.059897, 0.049464];
+
+// Sharpe-optimal weight for a straight portfolio blend (w% in the PEAD
+// sleeve, rest in SPY), found by sweeping w from 0-100% against the real
+// 2019-2026 monthly PEAD/SPY history and confirmed stable via
+// leave-one-year-out validation (the re-optimized weight per held-out year
+// clustered 10-20%; an adaptive policy did no better out-of-sample than
+// just fixing this one value).
+const DEFAULT_ALLOCATION_PCT = 15;
+
 const TRADE_FRACS = [-0.004066, 0.010406, 0.006404, 0.014895, 0.011595, 0.010635, 0.021527, 0.011029, 0.012533, 0.001777, 0.006385, 0.001227, 0.00076, 0.002509, 0.019351, 0.006103, -0.007782, 0.002236, -0.010956, 0.008289, 0.002264, -0.008844, 0.001767, -0.008185, -0.009009, -0.008077, -0.015947, -0.012623, -0.001956, 0.002906, -0.010724, 0.003036, -0.009571, -0.011077, -0.010996, -0.007747, 0.00519, 0.014854, -0.005551, 0.012172, -0.006301, -0.000409, -0.010492, -0.003358, -0.008084, -0.000149, -0.004065, -0.012385, -0.010633, -0.011849, -0.009897, 0.00478, -0.007406, -0.004656, 0.000575, -0.004518, -0.002287, -0.005506, -0.00232, 0.000622, 0.005867, 0.003475, 0.010115, 0.016893, 0.005821, 0.005939, -0.00232, -0.007968, -0.008021, -0.009536, 0.004442, 0.006744, 0.007587, 0.007126, 0.00979, 0.006244, 0.00784, 0.00381, 0.000864, 0.006238, -0.004159, -0.001082, 0.010299, 0.003338, 0.008306, -0.009287, 0.003911, -0.001944, -0.007559, -0.004677, 0.005892, 0.013025, 0.001134, 0.00259, -0.00993, -0.008241, -0.007176, -0.010505, -0.010236, -0.010263, -0.012551, -0.001961, -0.00652, -0.005618, -0.010497, 0.006359, -0.001402, -0.006975, -0.000259, 0.009981, 0.005003, 0.005068, 0.039402, 0.036824, 0.042958, 0.013087, 0.030691, 0.031747, 0.021989, 0.009885, -0.002674, 0.004308, 0.024775, 0.008819, 0.009636, 0.000448, 0.008489, 0.000706, -0.006425, -0.01181, -0.009552, -0.011859, -0.012894, -0.016095, -0.012519, -0.009239, 0.008907, 0.000867, -0.007763, -0.009385, 0.010826, -0.004515, -0.004597, 0.032922, -0.00274, 0.003784, 0.034761, -0.00064, 0.034728, 0.036524, 0.001976, -0.002378, -0.012241, -0.005245, -0.008732, -0.010085, 0.010616, 0.009771, 0.015932, -0.000387, 0.018839, 0.009006, 0.009692, 0.024399, 0.016813, 0.021935, -0.004492, 0.018954, -0.004622, -0.009586, 0.005675, -0.008526, -0.011936, -0.005344, 0.01411, -0.008456, 0.006, 0.017281, 0.030298, -0.013903, -0.015196, -0.011762, 0.016215, -0.011062, 0.016563, -0.015407, 0.020191, 0.025033, 0.016599, 0.018607, -0.011345, -0.005967, -0.007566, -0.000797, 0.031955, -0.003815, 7e-05, 0.013269, 0.003784, 0.010542, 0.006054, -0.014252, -0.004219, -0.01635, -0.007901, -0.002665, 0.001736, 0.007539, -0.00109, -0.002389, 0.011232, 0.013411, 0.025081, -0.014952, 0.029077, -0.009526, -0.006353, -0.000251, -0.000476, -0.015102, 0.01514, 0.009051, -0.003712, -0.009831, -0.018558, -0.012892, -0.006737, -5.7e-05, -0.014323, -0.013705, -0.00737, -0.009916, -0.008563, -0.014771, 0.017327, -0.001753, -0.01089, -0.008802, -0.015041, -0.018368, -0.016422, -0.005449, -0.001976, -0.001685, -0.005182, -0.009393, -0.012921, -0.016429, -0.011033, -0.014718, -0.010538, -0.012081, -0.012762, 0.010368, 0.021332, 0.008255, -0.012442, 0.013158, 0.025772, 0.02863, 0.004412, 0.014142, 0.008579, 0.005711, 0.006871, 0.000953, -0.00282, 0.014779, -0.015885, -0.014206, -0.004411, 0.047905, 0.017759, -0.010782, 0.009518, 0.01566, 0.018767, 9.1e-05, 0.016423, -0.000221, 0.012422, -0.007821, -0.017743, 0.017855, 0.022092, -0.015106, -0.020545, -0.013981, -0.013729, -0.012904, 0.008758, -0.007598, -0.008885, -0.01167, -0.013215, 0.009644, -0.004666, 0.02924, 0.023567, 0.010515, 0.024438, 0.008346, -0.005619, -0.004141, -0.014454, -0.014807, -0.01083, -0.003554, -0.014864, 0.010639, -0.013274, -0.014516, -0.009211, -0.000569, -0.010531, -0.00105, 0.004589, -0.006855, 0.007982, -0.01, -0.015567, -0.008885, -0.015831, -0.010205, 0.010802, -0.014033, -0.007846, 0.026047, 0.026533, 0.034607, 0.02422, -0.011384, 0.016996, 0.00125, -0.012066, 0.000937, 0.013081, 0.023077, -0.011633, 0.007029, -0.001683, -0.009419, -0.008858, -0.001903, -6.3e-05, 0.00135, 0.033253, 0.008337, -0.007363, 0.012419, -0.01248, 0.017743, 0.031338, 0.033058, 0.027176, 0.021147, -0.004243, 0.027218, -0.004708, 0.003637, 0.000917, 0.010589, 0.011932, -0.009291, 0.004565, -0.014368, -0.016685, -0.010643, -0.016529, -0.016198, -0.018219, -0.00217, -0.009791, 0.014577, 0.007045, 0.008684, 0.016827, -0.013387, -0.022236, -0.011037, -0.013867, 0.038145, 0.039189, 0.02672, 0.033828, -0.0181, 0.005045, 0.017038, 0.002442, -0.018057, 0.019015, 0.03198, 0.008011, 0.009195, -0.001807, -0.001358, -0.014456, 0.00052, -0.013265, -0.015069, -0.017059, 0.007769, 0.007984, -0.033929, -0.011869, -0.009625, -0.007756, 0.019604, -0.014819, 0.030599, 0.036, 0.023909, 0.014254, -8.9e-05, 0.014198, 0.017849, 0.013013, 0.0065, -0.006258, 0.019168, 0.003363, 0.004965, -0.01095, 0.019441, 0.035694, -0.002383, 0.019219, -0.021381, -0.018484, -0.005032, -0.015514, 0.00397, 0.014802, -0.008136, -0.009515, 0.002591, 0.007424, 0.076054, 0.009972, 0.003863, 0.023409, -0.019016, -0.019075, 0.014007, 0.024089, -0.003571, -0.01863, -0.00607, 0.011022, -0.014937, -0.014423, -0.019555, -0.001135, -0.015447, -0.014874, -0.008927, -0.009592, 0.000849, -0.011346, 0.044951, -0.008722, -0.00111, -0.007049, 0.01453, 0.011684, -0.010326, -0.00424, 0.039327, 0.010112, 0.014248, 0.008744, 0.028596];
 
 function dpr() { return window.devicePixelRatio || 1; }
@@ -790,6 +866,42 @@ function drawFanChart(canvas, checkpointLabels, bands) {
   ctx.textAlign = "left";
 }
 
+function drawMultiLineChart(canvas, labels, series) {
+  const { ctx, w, h } = fitCanvas(canvas);
+  ctx.clearRect(0, 0, w, h);
+  const padL = 50, padR = 8, padT = 10, padB = 20;
+  const plotW = w - padL - padR, plotH = h - padT - padB;
+  const allVals = series.flatMap(s => s.values);
+  const min = Math.min(...allVals), max = Math.max(...allVals);
+  const pad = (max - min) * 0.08 || 1;
+  const yMin = min - pad, yMax = max + pad;
+  const n = series[0].values.length;
+  const x = i => padL + (i / (n - 1)) * plotW;
+  const y = v => padT + plotH - ((v - yMin) / (yMax - yMin)) * plotH;
+
+  const gridColor = cssVar("--grid-line"), mutedColor = cssVar("--text-muted");
+  ctx.strokeStyle = gridColor; ctx.lineWidth = 1; ctx.font = "10.5px ui-monospace, monospace"; ctx.fillStyle = mutedColor;
+  const ticks = 4;
+  for (let t = 0; t <= ticks; t++) {
+    const v = yMin + (t / ticks) * (yMax - yMin);
+    const yy = y(v);
+    ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(w - padR, yy); ctx.stroke();
+    ctx.fillText("$" + Math.round(v / 1000) + "k", 2, yy + 3);
+  }
+  const labelStep = Math.max(1, Math.floor(labels.length / 6));
+  for (let i = 0; i < labels.length; i += labelStep) {
+    ctx.fillText(labels[i], x(i) - 14, h - 4);
+  }
+
+  series.forEach(s => {
+    ctx.beginPath();
+    s.values.forEach((v, i) => { const px = x(i), py = y(v); i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py); });
+    ctx.strokeStyle = s.color; ctx.lineWidth = 2; ctx.stroke();
+    const lx = x(s.values.length - 1), ly = y(s.values[s.values.length - 1]);
+    ctx.beginPath(); ctx.arc(lx, ly, 3, 0, Math.PI * 2); ctx.fillStyle = s.color; ctx.fill();
+  });
+}
+
 function percentile(sorted, p) {
   const idx = (sorted.length - 1) * p;
   const lo = Math.floor(idx), hi = Math.ceil(idx);
@@ -875,6 +987,111 @@ function runSimulation(capital, months) {
   return { bands, checkpointLabels, median, p5, p95, probLoss, nTrades };
 }
 
+// Generalized version of runSimulation for the comparison section below:
+// takes an arbitrary per-trade fraction series and block length so the same
+// bootstrap mechanics can drive PEAD, SPY, and the equitized blend
+// consistently. Only returns the median path + final summary (no full
+// percentile bands), since the comparison chart overlays four scenarios at
+// once and four shaded bands would be unreadable.
+function simulateFracsGeneric(capital, months, fracsArr, blockLen) {
+  const years = months / 12;
+  const nTrades = Math.max(1, Math.round(TRADES_PER_YEAR * years));
+  const nSims = 3000;
+  const n = fracsArr.length;
+
+  const numCheckpoints = Math.min(24, nTrades) + 1;
+  const checkpointTradeCounts = [];
+  for (let c = 0; c < numCheckpoints; c++) {
+    checkpointTradeCounts.push(Math.round((c / (numCheckpoints - 1)) * nTrades));
+  }
+  const checkpointCaps = checkpointTradeCounts.map(() => new Array(nSims));
+  const finals = new Array(nSims);
+
+  for (let s = 0; s < nSims; s++) {
+    let cap = capital;
+    let nextCheckpoint = 0;
+    let tradesDone = 0;
+    if (checkpointTradeCounts[0] === 0) {
+      checkpointCaps[0][s] = cap;
+      nextCheckpoint = 1;
+    }
+    while (tradesDone < nTrades) {
+      const start = (Math.random() * n) | 0;
+      const len = Math.min(blockLen, nTrades - tradesDone);
+      for (let k = 0; k < len; k++) {
+        const frac = fracsArr[(start + k) % n];
+        cap *= (1 + frac);
+        tradesDone++;
+        while (nextCheckpoint < numCheckpoints && checkpointTradeCounts[nextCheckpoint] === tradesDone) {
+          checkpointCaps[nextCheckpoint][s] = cap;
+          nextCheckpoint++;
+        }
+      }
+    }
+    finals[s] = cap;
+  }
+
+  const medianPath = [];
+  const checkpointLabels = [];
+  checkpointCaps.forEach((simsAtT, i) => {
+    const sorted = simsAtT.slice().sort((a, b) => a - b);
+    medianPath.push(percentile(sorted, 0.5));
+    const monthsAtCheckpoint = (checkpointTradeCounts[i] / TRADES_PER_YEAR) * 12;
+    checkpointLabels.push(
+      monthsAtCheckpoint >= 12 ? (monthsAtCheckpoint / 12).toFixed(1) + "y" : Math.round(monthsAtCheckpoint) + "mo"
+    );
+  });
+
+  const finalsSorted = finals.slice().sort((a, b) => a - b);
+  return {
+    medianPath,
+    checkpointLabels,
+    finalMedian: percentile(finalsSorted, 0.5),
+    p5: percentile(finalsSorted, 0.05),
+    p95: percentile(finalsSorted, 0.95),
+    probLoss: finals.filter(v => v < capital).length / nSims,
+  };
+}
+
+function updateComparison() {
+  const rawCapital = document.getElementById("capitalInput").value.replace(/[^0-9.]/g, "");
+  const capital = Math.max(1000, parseFloat(rawCapital) || 100000);
+
+  const rawAlloc = document.getElementById("allocationInput").value.replace(/[^0-9.]/g, "");
+  const allocPct = Math.min(100, Math.max(0, parseFloat(rawAlloc) || 0));
+  const w = allocPct / 100;
+
+  // Straight portfolio-weight blend: w share of capital run as PEAD, the
+  // rest held in SPY -- not an idle-cash correction. See DEFAULT_ALLOCATION_PCT
+  // above for how the 15% default was chosen and validated.
+  const blendedFracs = TRADE_FRACS.map((f, i) => w * f + (1 - w) * SPY_TRADE_FRACS[i]);
+
+  const scenarios = [
+    { label: "PEAD (naive i.i.d.)", colorVar: "--danger", fracs: TRADE_FRACS, block: 1 },
+    { label: "SPY only", colorVar: "--text-muted", fracs: SPY_TRADE_FRACS, block: 1 },
+    { label: "Better PEAD (block bootstrap)", colorVar: "--accent", fracs: TRADE_FRACS, block: 8 },
+    { label: "PEAD + SPY (w% allocation)", colorVar: "--success", fracs: blendedFracs, block: 8 },
+  ];
+
+  const results = scenarios.map(sc => ({ ...sc, ...simulateFracsGeneric(capital, currentMonths, sc.fracs, sc.block) }));
+
+  drawMultiLineChart(
+    document.getElementById("compareChart"),
+    results[0].checkpointLabels,
+    results.map(r => ({ values: r.medianPath, color: cssVar(r.colorVar) }))
+  );
+
+  document.getElementById("compareTableBody").innerHTML = results.map(r => `
+    <tr>
+      <td><span class="compare-dot" style="background:${cssVar(r.colorVar)}"></span>${r.label}</td>
+      <td class="num">${fmtMoney(r.finalMedian)}</td>
+      <td class="num">${((r.finalMedian / capital - 1) * 100).toFixed(1)}%</td>
+      <td class="num">${fmtMoney(r.p5)} &ndash; ${fmtMoney(r.p95)}</td>
+      <td class="num">${(r.probLoss * 100).toFixed(1)}%</td>
+    </tr>
+  `).join("");
+}
+
 let currentMonths = 12;
 
 function updateLab() {
@@ -898,6 +1115,7 @@ function updateLab() {
   probEl.appendChild(pill);
 
   drawFanChart(document.getElementById("fanChart"), result.checkpointLabels, result.bands);
+  updateComparison();
 }
 
 document.getElementById("capitalInput").addEventListener("input", (e) => {
@@ -907,6 +1125,15 @@ document.getElementById("capitalInput").addEventListener("input", (e) => {
 });
 document.getElementById("capitalInput").addEventListener("change", updateLab);
 document.getElementById("capitalInput").addEventListener("blur", updateLab);
+
+document.getElementById("allocationInput").addEventListener("input", (e) => {
+  let v = e.target.value.replace(/[^0-9.]/g, "");
+  const firstDot = v.indexOf(".");
+  if (firstDot !== -1) v = v.slice(0, firstDot + 1) + v.slice(firstDot + 1).replace(/\./g, "");
+  e.target.value = v;
+});
+document.getElementById("allocationInput").addEventListener("change", updateComparison);
+document.getElementById("allocationInput").addEventListener("blur", updateComparison);
 
 document.querySelectorAll(".segmented button").forEach(btn => {
   btn.addEventListener("click", () => {
